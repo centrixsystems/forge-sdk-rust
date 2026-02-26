@@ -26,9 +26,9 @@ mod error;
 mod types;
 
 pub use error::ForgeError;
-pub use types::{DitherMethod, Flow, Orientation, OutputFormat, Palette, WatermarkLayer};
+pub use types::{DitherMethod, EmbedRelationship, Flow, Orientation, OutputFormat, Palette, PdfStandard, WatermarkLayer};
 
-use types::{ErrorResponse, PdfPayload, QuantizePayload, RenderPayload, WatermarkPayload};
+use types::{EmbeddedFilePayload, ErrorResponse, PdfPayload, QuantizePayload, RenderPayload, WatermarkPayload};
 
 use std::time::Duration;
 
@@ -103,6 +103,8 @@ impl ForgeClient {
             pdf_watermark_font_size: None,
             pdf_watermark_scale: None,
             pdf_watermark_layer: None,
+            pdf_standard: None,
+            pdf_embedded_files: vec![],
         }
     }
 
@@ -139,6 +141,8 @@ impl ForgeClient {
             pdf_watermark_font_size: None,
             pdf_watermark_scale: None,
             pdf_watermark_layer: None,
+            pdf_standard: None,
+            pdf_embedded_files: vec![],
         }
     }
 
@@ -215,6 +219,8 @@ pub struct RenderRequestBuilder<'a> {
     pdf_watermark_font_size: Option<f32>,
     pdf_watermark_scale: Option<f32>,
     pdf_watermark_layer: Option<WatermarkLayer>,
+    pdf_standard: Option<PdfStandard>,
+    pdf_embedded_files: Vec<(String, String, Option<String>, Option<String>, Option<EmbedRelationship>)>,
 }
 
 impl<'a> RenderRequestBuilder<'a> {
@@ -382,6 +388,31 @@ impl<'a> RenderRequestBuilder<'a> {
         self
     }
 
+    /// PDF standard compliance level.
+    pub fn pdf_standard(mut self, standard: PdfStandard) -> Self {
+        self.pdf_standard = Some(standard);
+        self
+    }
+
+    /// Attach a file to the PDF. Data must be base64-encoded.
+    pub fn pdf_attach(
+        mut self,
+        path: &str,
+        base64_data: &str,
+        mime_type: Option<&str>,
+        description: Option<&str>,
+        relationship: Option<EmbedRelationship>,
+    ) -> Self {
+        self.pdf_embedded_files.push((
+            path.to_owned(),
+            base64_data.to_owned(),
+            mime_type.map(str::to_owned),
+            description.map(str::to_owned),
+            relationship,
+        ));
+        self
+    }
+
     /// Send the render request and return the raw output bytes.
     pub async fn send(self) -> Result<Vec<u8>, ForgeError> {
         let has_quantize =
@@ -400,7 +431,9 @@ impl<'a> RenderRequestBuilder<'a> {
             || self.pdf_keywords.is_some()
             || self.pdf_creator.is_some()
             || self.pdf_bookmarks.is_some()
-            || has_watermark;
+            || has_watermark
+            || self.pdf_standard.is_some()
+            || !self.pdf_embedded_files.is_empty();
 
         let payload = RenderPayload {
             html: self.html,
@@ -445,6 +478,23 @@ impl<'a> RenderRequestBuilder<'a> {
                         })
                     } else {
                         None
+                    },
+                    standard: self.pdf_standard,
+                    embedded_files: if self.pdf_embedded_files.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            self.pdf_embedded_files
+                                .iter()
+                                .map(|(path, data, mime, desc, rel)| EmbeddedFilePayload {
+                                    path: path.clone(),
+                                    data: data.clone(),
+                                    mime_type: mime.clone(),
+                                    description: desc.clone(),
+                                    relationship: *rel,
+                                })
+                                .collect(),
+                        )
                     },
                 })
             } else {
@@ -720,6 +770,45 @@ mod tests {
         assert!(p.get("watermark").is_none());
     }
 
+    #[test]
+    fn pdf_standard_serializes() {
+        assert_eq!(json_str(&PdfStandard::None), "\"none\"");
+        assert_eq!(json_str(&PdfStandard::A2B), "\"pdf/a-2b\"");
+        assert_eq!(json_str(&PdfStandard::A3B), "\"pdf/a-3b\"");
+    }
+
+    #[test]
+    fn embed_relationship_serializes() {
+        assert_eq!(json_str(&EmbedRelationship::Alternative), "\"alternative\"");
+        assert_eq!(json_str(&EmbedRelationship::Unspecified), "\"unspecified\"");
+    }
+
+    #[test]
+    fn pdf_standard_payload() {
+        let client = ForgeClient::new("http://localhost:3000");
+        let builder = client
+            .render_html("<h1>Invoice</h1>")
+            .pdf_standard(PdfStandard::A3B);
+        let payload = build_payload(&builder);
+        let v: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert_eq!(v["pdf"]["standard"], "pdf/a-3b");
+    }
+
+    #[test]
+    fn pdf_attach_payload() {
+        let client = ForgeClient::new("http://localhost:3000");
+        let builder = client
+            .render_html("<h1>Invoice</h1>")
+            .pdf_standard(PdfStandard::A3B)
+            .pdf_attach("factur-x.xml", "PGludm9pY2U+PC9pbnZvaWNlPg==", Some("text/xml"), Some("Invoice data"), Some(EmbedRelationship::Alternative));
+        let payload = build_payload(&builder);
+        let v: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        let ef = &v["pdf"]["embedded_files"][0];
+        assert_eq!(ef["path"], "factur-x.xml");
+        assert_eq!(ef["mime_type"], "text/xml");
+        assert_eq!(ef["relationship"], "alternative");
+    }
+
     // -- helpers --
 
     fn json_str<T: serde::Serialize>(val: &T) -> String {
@@ -743,7 +832,9 @@ mod tests {
             || builder.pdf_keywords.is_some()
             || builder.pdf_creator.is_some()
             || builder.pdf_bookmarks.is_some()
-            || has_watermark;
+            || has_watermark
+            || builder.pdf_standard.is_some()
+            || !builder.pdf_embedded_files.is_empty();
 
         let payload = RenderPayload {
             html: builder.html,
@@ -788,6 +879,23 @@ mod tests {
                         })
                     } else {
                         None
+                    },
+                    standard: builder.pdf_standard,
+                    embedded_files: if builder.pdf_embedded_files.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            builder.pdf_embedded_files
+                                .iter()
+                                .map(|(path, data, mime, desc, rel)| EmbeddedFilePayload {
+                                    path: path.clone(),
+                                    data: data.clone(),
+                                    mime_type: mime.clone(),
+                                    description: desc.clone(),
+                                    relationship: *rel,
+                                })
+                                .collect(),
+                        )
                     },
                 })
             } else {

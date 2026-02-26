@@ -134,6 +134,31 @@ let pdf = client.render_html("<h1>Draft Report</h1>")
     .await?;
 ```
 
+### PDF/A Archival & Embedded Files
+
+Generate PDF/A-3b compliant documents with embedded files (e.g. ZUGFeRD/Factur-X invoices).
+
+```rust
+use forge_sdk::{PdfStandard, EmbedRelationship};
+
+let xml_data = base64::encode(std::fs::read("factur-x.xml")?);
+
+let pdf = client.render_html("<h1>Invoice #1234</h1>")
+    .format(OutputFormat::Pdf)
+    .paper("a4")
+    .pdf_title("Invoice #1234")
+    .pdf_standard(PdfStandard::A3B)
+    .pdf_attach(
+        "factur-x.xml",
+        &xml_data,
+        Some("text/xml"),
+        Some("Factur-X invoice data"),
+        Some(EmbedRelationship::Alternative),
+    )
+    .send()
+    .await?;
+```
+
 ### Custom Client Configuration
 
 ```rust
@@ -202,6 +227,8 @@ All methods consume and return `Self` for chaining. Call `.send().await` to exec
 | `pdf_watermark_font_size` | `f32` | Watermark font size in PDF points (default: auto) |
 | `pdf_watermark_scale` | `f32` | Watermark image scale (0.0-1.0, default: 0.5) |
 | `pdf_watermark_layer` | `WatermarkLayer` | Layer position: Over or Under |
+| `pdf_standard` | `PdfStandard` | PDF standard: None, A2B (PDF/A-2b), A3B (PDF/A-3b) |
+| `pdf_attach` | `(&str, &str, Option<&str>, Option<&str>, Option<EmbedRelationship>)` | Embed file in PDF (base64 data) |
 
 ### Enums
 
@@ -216,6 +243,10 @@ All methods consume and return `Self` for chaining. Call `.send().await` to exec
 **`DitherMethod`**: `None`, `FloydSteinberg`, `Atkinson`, `Ordered`
 
 **`WatermarkLayer`**: `Over`, `Under`
+
+**`PdfStandard`**: `None`, `A2B` (PDF/A-2b), `A3B` (PDF/A-3b)
+
+**`EmbedRelationship`**: `Alternative`, `Supplement`, `Data`, `Source`, `Unspecified`
 
 ### Errors
 

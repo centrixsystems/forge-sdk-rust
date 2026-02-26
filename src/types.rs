@@ -119,6 +119,54 @@ impl Serialize for WatermarkLayer {
     }
 }
 
+/// PDF standard compliance level.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PdfStandard {
+    /// Standard PDF (no archival compliance).
+    None,
+    /// PDF/A-2b — modern archival.
+    A2B,
+    /// PDF/A-3b — archival with embedded files (ZUGFeRD/Factur-X).
+    A3B,
+}
+
+impl Serialize for PdfStandard {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(match self {
+            Self::None => "none",
+            Self::A2B => "pdf/a-2b",
+            Self::A3B => "pdf/a-3b",
+        })
+    }
+}
+
+/// Relationship of an embedded file to the PDF document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmbedRelationship {
+    /// Alternative representation (ZUGFeRD: XML invoice).
+    Alternative,
+    /// Supplements the document.
+    Supplement,
+    /// Data used to derive visual presentation.
+    Data,
+    /// Source file the PDF was created from.
+    Source,
+    /// No specific relationship.
+    Unspecified,
+}
+
+impl Serialize for EmbedRelationship {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(match self {
+            Self::Alternative => "alternative",
+            Self::Supplement => "supplement",
+            Self::Data => "data",
+            Self::Source => "source",
+            Self::Unspecified => "unspecified",
+        })
+    }
+}
+
 /// Watermark settings within a PDF render request.
 #[derive(Debug, Serialize)]
 pub(crate) struct WatermarkPayload<'a> {
@@ -138,6 +186,19 @@ pub(crate) struct WatermarkPayload<'a> {
     pub scale: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub layer: Option<WatermarkLayer>,
+}
+
+/// Embedded file settings within a PDF render request.
+#[derive(Debug, Serialize)]
+pub(crate) struct EmbeddedFilePayload {
+    pub path: String,
+    pub data: String, // base64-encoded
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relationship: Option<EmbedRelationship>,
 }
 
 /// JSON payload for the /render endpoint.
@@ -200,6 +261,10 @@ pub(crate) struct PdfPayload<'a> {
     pub bookmarks: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub watermark: Option<WatermarkPayload<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub standard: Option<PdfStandard>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedded_files: Option<Vec<EmbeddedFilePayload>>,
 }
 
 /// Server error response body.
