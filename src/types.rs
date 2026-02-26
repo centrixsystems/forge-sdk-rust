@@ -103,6 +103,43 @@ impl Serialize for Palette {
     }
 }
 
+/// Watermark layer position relative to page content.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WatermarkLayer {
+    Over,
+    Under,
+}
+
+impl Serialize for WatermarkLayer {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(match self {
+            Self::Over => "over",
+            Self::Under => "under",
+        })
+    }
+}
+
+/// Watermark settings within a PDF render request.
+#[derive(Debug, Serialize)]
+pub(crate) struct WatermarkPayload<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_data: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opacity: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rotation: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_size: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layer: Option<WatermarkLayer>,
+}
+
 /// JSON payload for the /render endpoint.
 #[derive(Debug, Serialize)]
 pub(crate) struct RenderPayload<'a> {
@@ -161,6 +198,8 @@ pub(crate) struct PdfPayload<'a> {
     pub creator: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bookmarks: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub watermark: Option<WatermarkPayload<'a>>,
 }
 
 /// Server error response body.

@@ -26,9 +26,9 @@ mod error;
 mod types;
 
 pub use error::ForgeError;
-pub use types::{DitherMethod, Flow, Orientation, OutputFormat, Palette};
+pub use types::{DitherMethod, Flow, Orientation, OutputFormat, Palette, WatermarkLayer};
 
-use types::{ErrorResponse, PdfPayload, QuantizePayload, RenderPayload};
+use types::{ErrorResponse, PdfPayload, QuantizePayload, RenderPayload, WatermarkPayload};
 
 use std::time::Duration;
 
@@ -95,6 +95,14 @@ impl ForgeClient {
             pdf_keywords: None,
             pdf_creator: None,
             pdf_bookmarks: None,
+            pdf_watermark_text: None,
+            pdf_watermark_image: None,
+            pdf_watermark_opacity: None,
+            pdf_watermark_rotation: None,
+            pdf_watermark_color: None,
+            pdf_watermark_font_size: None,
+            pdf_watermark_scale: None,
+            pdf_watermark_layer: None,
         }
     }
 
@@ -123,6 +131,14 @@ impl ForgeClient {
             pdf_keywords: None,
             pdf_creator: None,
             pdf_bookmarks: None,
+            pdf_watermark_text: None,
+            pdf_watermark_image: None,
+            pdf_watermark_opacity: None,
+            pdf_watermark_rotation: None,
+            pdf_watermark_color: None,
+            pdf_watermark_font_size: None,
+            pdf_watermark_scale: None,
+            pdf_watermark_layer: None,
         }
     }
 
@@ -191,6 +207,14 @@ pub struct RenderRequestBuilder<'a> {
     pdf_keywords: Option<&'a str>,
     pdf_creator: Option<&'a str>,
     pdf_bookmarks: Option<bool>,
+    pdf_watermark_text: Option<&'a str>,
+    pdf_watermark_image: Option<&'a str>,
+    pdf_watermark_opacity: Option<f32>,
+    pdf_watermark_rotation: Option<f32>,
+    pdf_watermark_color: Option<&'a str>,
+    pdf_watermark_font_size: Option<f32>,
+    pdf_watermark_scale: Option<f32>,
+    pdf_watermark_layer: Option<WatermarkLayer>,
 }
 
 impl<'a> RenderRequestBuilder<'a> {
@@ -310,16 +334,73 @@ impl<'a> RenderRequestBuilder<'a> {
         self
     }
 
+    /// Watermark text overlay on each PDF page.
+    pub fn pdf_watermark_text(mut self, text: &'a str) -> Self {
+        self.pdf_watermark_text = Some(text);
+        self
+    }
+
+    /// Watermark image (base64-encoded PNG/JPEG).
+    pub fn pdf_watermark_image(mut self, base64_data: &'a str) -> Self {
+        self.pdf_watermark_image = Some(base64_data);
+        self
+    }
+
+    /// Watermark opacity (0.0-1.0, default 0.15).
+    pub fn pdf_watermark_opacity(mut self, opacity: f32) -> Self {
+        self.pdf_watermark_opacity = Some(opacity);
+        self
+    }
+
+    /// Watermark rotation in degrees (default -45).
+    pub fn pdf_watermark_rotation(mut self, degrees: f32) -> Self {
+        self.pdf_watermark_rotation = Some(degrees);
+        self
+    }
+
+    /// Watermark text color as hex (default #888888).
+    pub fn pdf_watermark_color(mut self, hex: &'a str) -> Self {
+        self.pdf_watermark_color = Some(hex);
+        self
+    }
+
+    /// Watermark font size in PDF points.
+    pub fn pdf_watermark_font_size(mut self, size: f32) -> Self {
+        self.pdf_watermark_font_size = Some(size);
+        self
+    }
+
+    /// Watermark image scale (0.0-1.0, default 0.5).
+    pub fn pdf_watermark_scale(mut self, scale: f32) -> Self {
+        self.pdf_watermark_scale = Some(scale);
+        self
+    }
+
+    /// Watermark layer position.
+    pub fn pdf_watermark_layer(mut self, layer: WatermarkLayer) -> Self {
+        self.pdf_watermark_layer = Some(layer);
+        self
+    }
+
     /// Send the render request and return the raw output bytes.
     pub async fn send(self) -> Result<Vec<u8>, ForgeError> {
         let has_quantize =
             self.colors.is_some() || self.palette.is_some() || self.dither.is_some();
+        let has_watermark = self.pdf_watermark_text.is_some()
+            || self.pdf_watermark_image.is_some()
+            || self.pdf_watermark_opacity.is_some()
+            || self.pdf_watermark_rotation.is_some()
+            || self.pdf_watermark_color.is_some()
+            || self.pdf_watermark_font_size.is_some()
+            || self.pdf_watermark_scale.is_some()
+            || self.pdf_watermark_layer.is_some();
         let has_pdf = self.pdf_title.is_some()
             || self.pdf_author.is_some()
             || self.pdf_subject.is_some()
             || self.pdf_keywords.is_some()
             || self.pdf_creator.is_some()
-            || self.pdf_bookmarks.is_some();
+            || self.pdf_bookmarks.is_some()
+            || has_watermark;
 
         let payload = RenderPayload {
             html: self.html,
@@ -351,6 +432,20 @@ impl<'a> RenderRequestBuilder<'a> {
                     keywords: self.pdf_keywords,
                     creator: self.pdf_creator,
                     bookmarks: self.pdf_bookmarks,
+                    watermark: if has_watermark {
+                        Some(WatermarkPayload {
+                            text: self.pdf_watermark_text,
+                            image_data: self.pdf_watermark_image,
+                            opacity: self.pdf_watermark_opacity,
+                            rotation: self.pdf_watermark_rotation,
+                            color: self.pdf_watermark_color,
+                            font_size: self.pdf_watermark_font_size,
+                            scale: self.pdf_watermark_scale,
+                            layer: self.pdf_watermark_layer,
+                        })
+                    } else {
+                        None
+                    },
                 })
             } else {
                 None
@@ -590,6 +685,41 @@ mod tests {
         assert_eq!(client.base_url, "http://localhost:3000");
     }
 
+    #[test]
+    fn watermark_payload() {
+        let client = ForgeClient::new("http://localhost:3000");
+        let builder = client
+            .render_html("<h1>Report</h1>")
+            .pdf_watermark_text("DRAFT")
+            .pdf_watermark_opacity(0.2)
+            .pdf_watermark_rotation(-30.0)
+            .pdf_watermark_color("#ff0000")
+            .pdf_watermark_layer(WatermarkLayer::Over);
+        let payload = build_payload(&builder);
+        let v: serde_json::Value = serde_json::from_str(&payload).unwrap();
+
+        let wm = &v["pdf"]["watermark"];
+        assert_eq!(wm["text"], "DRAFT");
+        assert_eq!(wm["opacity"], 0.2);
+        assert_eq!(wm["rotation"], -30.0);
+        assert_eq!(wm["color"], "#ff0000");
+        assert_eq!(wm["layer"], "over");
+    }
+
+    #[test]
+    fn no_watermark_in_pdf_when_unset() {
+        let client = ForgeClient::new("http://localhost:3000");
+        let builder = client
+            .render_html("<p>test</p>")
+            .pdf_title("Title Only");
+        let payload = build_payload(&builder);
+        let v: serde_json::Value = serde_json::from_str(&payload).unwrap();
+
+        let p = &v["pdf"];
+        assert_eq!(p["title"], "Title Only");
+        assert!(p.get("watermark").is_none());
+    }
+
     // -- helpers --
 
     fn json_str<T: serde::Serialize>(val: &T) -> String {
@@ -599,12 +729,21 @@ mod tests {
     fn build_payload(builder: &RenderRequestBuilder<'_>) -> String {
         let has_quantize =
             builder.colors.is_some() || builder.palette.is_some() || builder.dither.is_some();
+        let has_watermark = builder.pdf_watermark_text.is_some()
+            || builder.pdf_watermark_image.is_some()
+            || builder.pdf_watermark_opacity.is_some()
+            || builder.pdf_watermark_rotation.is_some()
+            || builder.pdf_watermark_color.is_some()
+            || builder.pdf_watermark_font_size.is_some()
+            || builder.pdf_watermark_scale.is_some()
+            || builder.pdf_watermark_layer.is_some();
         let has_pdf = builder.pdf_title.is_some()
             || builder.pdf_author.is_some()
             || builder.pdf_subject.is_some()
             || builder.pdf_keywords.is_some()
             || builder.pdf_creator.is_some()
-            || builder.pdf_bookmarks.is_some();
+            || builder.pdf_bookmarks.is_some()
+            || has_watermark;
 
         let payload = RenderPayload {
             html: builder.html,
@@ -636,6 +775,20 @@ mod tests {
                     keywords: builder.pdf_keywords,
                     creator: builder.pdf_creator,
                     bookmarks: builder.pdf_bookmarks,
+                    watermark: if has_watermark {
+                        Some(WatermarkPayload {
+                            text: builder.pdf_watermark_text,
+                            image_data: builder.pdf_watermark_image,
+                            opacity: builder.pdf_watermark_opacity,
+                            rotation: builder.pdf_watermark_rotation,
+                            color: builder.pdf_watermark_color,
+                            font_size: builder.pdf_watermark_font_size,
+                            scale: builder.pdf_watermark_scale,
+                            layer: builder.pdf_watermark_layer,
+                        })
+                    } else {
+                        None
+                    },
                 })
             } else {
                 None

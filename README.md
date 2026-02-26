@@ -116,6 +116,24 @@ let pdf = client.render_html("<h1>Annual Report</h1><h2>Q4 Results</h2>")
     .await?;
 ```
 
+### PDF Watermarks
+
+Add text or image watermarks to each page.
+
+```rust
+use forge_sdk::WatermarkLayer;
+
+let pdf = client.render_html("<h1>Draft Report</h1>")
+    .format(OutputFormat::Pdf)
+    .pdf_watermark_text("DRAFT")
+    .pdf_watermark_opacity(0.15)
+    .pdf_watermark_rotation(-45.0)
+    .pdf_watermark_color("#888888")
+    .pdf_watermark_layer(WatermarkLayer::Over)
+    .send()
+    .await?;
+```
+
 ### Custom Client Configuration
 
 ```rust
@@ -176,6 +194,14 @@ All methods consume and return `Self` for chaining. Call `.send().await` to exec
 | `pdf_keywords` | `&str` | PDF metadata: comma-separated keywords |
 | `pdf_creator` | `&str` | PDF metadata: creator application name |
 | `pdf_bookmarks` | `bool` | Generate PDF bookmarks from headings |
+| `pdf_watermark_text` | `&str` | Watermark text on each page |
+| `pdf_watermark_image` | `&str` | Base64-encoded PNG/JPEG watermark image |
+| `pdf_watermark_opacity` | `f32` | Watermark opacity (0.0-1.0, default: 0.15) |
+| `pdf_watermark_rotation` | `f32` | Watermark rotation in degrees (default: -45) |
+| `pdf_watermark_color` | `&str` | Watermark text color as hex (default: #888888) |
+| `pdf_watermark_font_size` | `f32` | Watermark font size in PDF points (default: auto) |
+| `pdf_watermark_scale` | `f32` | Watermark image scale (0.0-1.0, default: 0.5) |
+| `pdf_watermark_layer` | `WatermarkLayer` | Layer position: Over or Under |
 
 ### Enums
 
@@ -188,6 +214,8 @@ All methods consume and return `Self` for chaining. Call `.send().await` to exec
 **`Palette`**: `Auto`, `BlackWhite`, `Grayscale`, `Eink`, `Custom(Vec<String>)`
 
 **`DitherMethod`**: `None`, `FloydSteinberg`, `Atkinson`, `Ordered`
+
+**`WatermarkLayer`**: `Over`, `Under`
 
 ### Errors
 
