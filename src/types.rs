@@ -128,7 +128,7 @@ pub(crate) struct RenderPayload<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub background: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub timeout: Option<u32>,
+    pub timeout: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quantize: Option<QuantizePayload<'a>>,
 }

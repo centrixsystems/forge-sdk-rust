@@ -34,6 +34,7 @@ use std::time::Duration;
 
 /// Client for a Forge rendering server.
 #[derive(Debug, Clone)]
+#[must_use]
 pub struct ForgeClient {
     base_url: String,
     http: reqwest::Client,
@@ -125,6 +126,7 @@ impl ForgeClient {
 }
 
 /// Builder for configuring a [`ForgeClient`].
+#[must_use]
 pub struct ForgeClientBuilder {
     base_url: String,
     timeout: Option<Duration>,
@@ -132,6 +134,7 @@ pub struct ForgeClientBuilder {
 
 impl ForgeClientBuilder {
     /// Set the HTTP request timeout.
+    #[must_use]
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
         self
@@ -152,6 +155,7 @@ impl ForgeClientBuilder {
 
 /// Builder for a render request. Created via [`ForgeClient::render_html`] or
 /// [`ForgeClient::render_url`].
+#[must_use]
 pub struct RenderRequestBuilder<'a> {
     client: &'a ForgeClient,
     html: Option<&'a str>,
@@ -165,7 +169,7 @@ pub struct RenderRequestBuilder<'a> {
     flow: Option<Flow>,
     density: Option<f64>,
     background: Option<&'a str>,
-    timeout: Option<u32>,
+    timeout: Option<u64>,
     colors: Option<u16>,
     palette: Option<Palette>,
     dither: Option<DitherMethod>,
@@ -229,7 +233,7 @@ impl<'a> RenderRequestBuilder<'a> {
     }
 
     /// Page load timeout in seconds (default: 30).
-    pub fn timeout(mut self, seconds: u32) -> Self {
+    pub fn timeout(mut self, seconds: u64) -> Self {
         self.timeout = Some(seconds);
         self
     }
