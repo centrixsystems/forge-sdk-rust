@@ -26,9 +26,9 @@ mod error;
 mod types;
 
 pub use error::ForgeError;
-pub use types::{DitherMethod, EmbedRelationship, Flow, Orientation, OutputFormat, Palette, PdfStandard, WatermarkLayer};
+pub use types::{BarcodeAnchor, BarcodeType, DitherMethod, EmbedRelationship, Flow, Orientation, OutputFormat, Palette, PdfStandard, WatermarkLayer};
 
-use types::{EmbeddedFilePayload, ErrorResponse, PdfPayload, QuantizePayload, RenderPayload, WatermarkPayload};
+use types::{BarcodePayload, EmbeddedFilePayload, ErrorResponse, PdfPayload, QuantizePayload, RenderPayload, WatermarkPayload};
 
 use std::time::Duration;
 
@@ -103,8 +103,10 @@ impl ForgeClient {
             pdf_watermark_font_size: None,
             pdf_watermark_scale: None,
             pdf_watermark_layer: None,
+            pdf_watermark_pages: None,
             pdf_standard: None,
             pdf_embedded_files: vec![],
+            pdf_barcodes: vec![],
         }
     }
 
@@ -141,8 +143,10 @@ impl ForgeClient {
             pdf_watermark_font_size: None,
             pdf_watermark_scale: None,
             pdf_watermark_layer: None,
+            pdf_watermark_pages: None,
             pdf_standard: None,
             pdf_embedded_files: vec![],
+            pdf_barcodes: vec![],
         }
     }
 
@@ -219,8 +223,10 @@ pub struct RenderRequestBuilder<'a> {
     pdf_watermark_font_size: Option<f32>,
     pdf_watermark_scale: Option<f32>,
     pdf_watermark_layer: Option<WatermarkLayer>,
+    pdf_watermark_pages: Option<&'a str>,
     pdf_standard: Option<PdfStandard>,
     pdf_embedded_files: Vec<(String, String, Option<String>, Option<String>, Option<EmbedRelationship>)>,
+    pdf_barcodes: Vec<(&'a str, BarcodeType, Option<f64>, Option<f64>, Option<f64>, Option<f64>, Option<BarcodeAnchor>, Option<&'a str>, Option<&'a str>, Option<bool>, Option<&'a str>)>,
 }
 
 impl<'a> RenderRequestBuilder<'a> {
@@ -388,6 +394,41 @@ impl<'a> RenderRequestBuilder<'a> {
         self
     }
 
+    /// Watermark page targeting: "all", "first", "last", or "1,3-5".
+    pub fn pdf_watermark_pages(mut self, pages: &'a str) -> Self {
+        self.pdf_watermark_pages = Some(pages);
+        self
+    }
+
+    /// Add a barcode overlay to the PDF.
+    pub fn pdf_barcode(
+        mut self,
+        barcode_type: BarcodeType,
+        data: &'a str,
+    ) -> Self {
+        self.pdf_barcodes.push((data, barcode_type, None, None, None, None, None, None, None, None, None));
+        self
+    }
+
+    /// Add a barcode with full configuration.
+    pub fn pdf_barcode_full(
+        mut self,
+        barcode_type: BarcodeType,
+        data: &'a str,
+        x: Option<f64>,
+        y: Option<f64>,
+        width: Option<f64>,
+        height: Option<f64>,
+        anchor: Option<BarcodeAnchor>,
+        foreground: Option<&'a str>,
+        background: Option<&'a str>,
+        draw_background: Option<bool>,
+        pages: Option<&'a str>,
+    ) -> Self {
+        self.pdf_barcodes.push((data, barcode_type, x, y, width, height, anchor, foreground, background, draw_background, pages));
+        self
+    }
+
     /// PDF standard compliance level.
     pub fn pdf_standard(mut self, standard: PdfStandard) -> Self {
         self.pdf_standard = Some(standard);
@@ -424,7 +465,8 @@ impl<'a> RenderRequestBuilder<'a> {
             || self.pdf_watermark_color.is_some()
             || self.pdf_watermark_font_size.is_some()
             || self.pdf_watermark_scale.is_some()
-            || self.pdf_watermark_layer.is_some();
+            || self.pdf_watermark_layer.is_some()
+            || self.pdf_watermark_pages.is_some();
         let has_pdf = self.pdf_title.is_some()
             || self.pdf_author.is_some()
             || self.pdf_subject.is_some()
@@ -433,7 +475,8 @@ impl<'a> RenderRequestBuilder<'a> {
             || self.pdf_bookmarks.is_some()
             || has_watermark
             || self.pdf_standard.is_some()
-            || !self.pdf_embedded_files.is_empty();
+            || !self.pdf_embedded_files.is_empty()
+            || !self.pdf_barcodes.is_empty();
 
         let payload = RenderPayload {
             html: self.html,
@@ -475,6 +518,7 @@ impl<'a> RenderRequestBuilder<'a> {
                             font_size: self.pdf_watermark_font_size,
                             scale: self.pdf_watermark_scale,
                             layer: self.pdf_watermark_layer,
+                            pages: self.pdf_watermark_pages,
                         })
                     } else {
                         None
@@ -495,6 +539,25 @@ impl<'a> RenderRequestBuilder<'a> {
                                 })
                                 .collect(),
                         )
+                    },
+                    barcodes: if self.pdf_barcodes.is_empty() {
+                        None
+                    } else {
+                        Some(self.pdf_barcodes.iter().map(|(data, bt, x, y, w, h, anchor, fg, bg, draw_bg, pages)| {
+                            BarcodePayload {
+                                barcode_type: *bt,
+                                data,
+                                x: *x,
+                                y: *y,
+                                width: *w,
+                                height: *h,
+                                anchor: *anchor,
+                                foreground: *fg,
+                                background: *bg,
+                                draw_background: *draw_bg,
+                                pages: *pages,
+                            }
+                        }).collect())
                     },
                 })
             } else {
@@ -809,6 +872,21 @@ mod tests {
         assert_eq!(ef["relationship"], "alternative");
     }
 
+    #[test]
+    fn barcode_payload() {
+        let client = ForgeClient::new("http://localhost:3000");
+        let builder = client
+            .render_html("<h1>Invoice</h1>")
+            .pdf_barcode(BarcodeType::Qr, "https://example.com/inv/123")
+            .pdf_watermark_text("DRAFT")
+            .pdf_watermark_pages("first");
+        let payload = build_payload(&builder);
+        let v: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert_eq!(v["pdf"]["barcodes"][0]["type"], "qr");
+        assert_eq!(v["pdf"]["barcodes"][0]["data"], "https://example.com/inv/123");
+        assert_eq!(v["pdf"]["watermark"]["pages"], "first");
+    }
+
     // -- helpers --
 
     fn json_str<T: serde::Serialize>(val: &T) -> String {
@@ -825,7 +903,8 @@ mod tests {
             || builder.pdf_watermark_color.is_some()
             || builder.pdf_watermark_font_size.is_some()
             || builder.pdf_watermark_scale.is_some()
-            || builder.pdf_watermark_layer.is_some();
+            || builder.pdf_watermark_layer.is_some()
+            || builder.pdf_watermark_pages.is_some();
         let has_pdf = builder.pdf_title.is_some()
             || builder.pdf_author.is_some()
             || builder.pdf_subject.is_some()
@@ -834,7 +913,8 @@ mod tests {
             || builder.pdf_bookmarks.is_some()
             || has_watermark
             || builder.pdf_standard.is_some()
-            || !builder.pdf_embedded_files.is_empty();
+            || !builder.pdf_embedded_files.is_empty()
+            || !builder.pdf_barcodes.is_empty();
 
         let payload = RenderPayload {
             html: builder.html,
@@ -876,6 +956,7 @@ mod tests {
                             font_size: builder.pdf_watermark_font_size,
                             scale: builder.pdf_watermark_scale,
                             layer: builder.pdf_watermark_layer,
+                            pages: builder.pdf_watermark_pages,
                         })
                     } else {
                         None
@@ -896,6 +977,25 @@ mod tests {
                                 })
                                 .collect(),
                         )
+                    },
+                    barcodes: if builder.pdf_barcodes.is_empty() {
+                        None
+                    } else {
+                        Some(builder.pdf_barcodes.iter().map(|(data, bt, x, y, w, h, anchor, fg, bg, draw_bg, pages)| {
+                            BarcodePayload {
+                                barcode_type: *bt,
+                                data,
+                                x: *x,
+                                y: *y,
+                                width: *w,
+                                height: *h,
+                                anchor: *anchor,
+                                foreground: *fg,
+                                background: *bg,
+                                draw_background: *draw_bg,
+                                pages: *pages,
+                            }
+                        }).collect())
                     },
                 })
             } else {

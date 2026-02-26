@@ -103,6 +103,48 @@ impl Serialize for Palette {
     }
 }
 
+/// Barcode/QR code type for PDF overlay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BarcodeType {
+    Qr,
+    Code128,
+    Ean13,
+    UpcA,
+    Code39,
+}
+
+impl Serialize for BarcodeType {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(match self {
+            Self::Qr => "qr",
+            Self::Code128 => "code128",
+            Self::Ean13 => "ean13",
+            Self::UpcA => "upca",
+            Self::Code39 => "code39",
+        })
+    }
+}
+
+/// Anchor position for barcode placement on the page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BarcodeAnchor {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+impl Serialize for BarcodeAnchor {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(match self {
+            Self::TopLeft => "top-left",
+            Self::TopRight => "top-right",
+            Self::BottomLeft => "bottom-left",
+            Self::BottomRight => "bottom-right",
+        })
+    }
+}
+
 /// Watermark layer position relative to page content.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WatermarkLayer {
@@ -186,6 +228,34 @@ pub(crate) struct WatermarkPayload<'a> {
     pub scale: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub layer: Option<WatermarkLayer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pages: Option<&'a str>,
+}
+
+/// Barcode overlay settings within a PDF render request.
+#[derive(Debug, Serialize)]
+pub(crate) struct BarcodePayload<'a> {
+    #[serde(rename = "type")]
+    pub barcode_type: BarcodeType,
+    pub data: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub x: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub y: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<BarcodeAnchor>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub foreground: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub draw_background: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pages: Option<&'a str>,
 }
 
 /// Embedded file settings within a PDF render request.
@@ -265,6 +335,8 @@ pub(crate) struct PdfPayload<'a> {
     pub standard: Option<PdfStandard>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedded_files: Option<Vec<EmbeddedFilePayload>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub barcodes: Option<Vec<BarcodePayload<'a>>>,
 }
 
 /// Server error response body.
