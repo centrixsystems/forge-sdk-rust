@@ -28,7 +28,7 @@ mod types;
 pub use error::ForgeError;
 pub use types::{DitherMethod, Flow, Orientation, OutputFormat, Palette};
 
-use types::{ErrorResponse, QuantizePayload, RenderPayload};
+use types::{ErrorResponse, PdfPayload, QuantizePayload, RenderPayload};
 
 use std::time::Duration;
 
@@ -89,6 +89,12 @@ impl ForgeClient {
             colors: None,
             palette: None,
             dither: None,
+            pdf_title: None,
+            pdf_author: None,
+            pdf_subject: None,
+            pdf_keywords: None,
+            pdf_creator: None,
+            pdf_bookmarks: None,
         }
     }
 
@@ -111,6 +117,12 @@ impl ForgeClient {
             colors: None,
             palette: None,
             dither: None,
+            pdf_title: None,
+            pdf_author: None,
+            pdf_subject: None,
+            pdf_keywords: None,
+            pdf_creator: None,
+            pdf_bookmarks: None,
         }
     }
 
@@ -173,6 +185,12 @@ pub struct RenderRequestBuilder<'a> {
     colors: Option<u16>,
     palette: Option<Palette>,
     dither: Option<DitherMethod>,
+    pdf_title: Option<&'a str>,
+    pdf_author: Option<&'a str>,
+    pdf_subject: Option<&'a str>,
+    pdf_keywords: Option<&'a str>,
+    pdf_creator: Option<&'a str>,
+    pdf_bookmarks: Option<bool>,
 }
 
 impl<'a> RenderRequestBuilder<'a> {
@@ -256,10 +274,52 @@ impl<'a> RenderRequestBuilder<'a> {
         self
     }
 
+    /// PDF metadata: document title.
+    pub fn pdf_title(mut self, title: &'a str) -> Self {
+        self.pdf_title = Some(title);
+        self
+    }
+
+    /// PDF metadata: document author.
+    pub fn pdf_author(mut self, author: &'a str) -> Self {
+        self.pdf_author = Some(author);
+        self
+    }
+
+    /// PDF metadata: document subject.
+    pub fn pdf_subject(mut self, subject: &'a str) -> Self {
+        self.pdf_subject = Some(subject);
+        self
+    }
+
+    /// PDF metadata: comma-separated keywords.
+    pub fn pdf_keywords(mut self, keywords: &'a str) -> Self {
+        self.pdf_keywords = Some(keywords);
+        self
+    }
+
+    /// PDF metadata: creator application name.
+    pub fn pdf_creator(mut self, creator: &'a str) -> Self {
+        self.pdf_creator = Some(creator);
+        self
+    }
+
+    /// Enable PDF bookmarks generated from headings.
+    pub fn pdf_bookmarks(mut self, enabled: bool) -> Self {
+        self.pdf_bookmarks = Some(enabled);
+        self
+    }
+
     /// Send the render request and return the raw output bytes.
     pub async fn send(self) -> Result<Vec<u8>, ForgeError> {
         let has_quantize =
             self.colors.is_some() || self.palette.is_some() || self.dither.is_some();
+        let has_pdf = self.pdf_title.is_some()
+            || self.pdf_author.is_some()
+            || self.pdf_subject.is_some()
+            || self.pdf_keywords.is_some()
+            || self.pdf_creator.is_some()
+            || self.pdf_bookmarks.is_some();
 
         let payload = RenderPayload {
             html: self.html,
@@ -279,6 +339,18 @@ impl<'a> RenderRequestBuilder<'a> {
                     colors: self.colors,
                     palette: self.palette.as_ref(),
                     dither: self.dither,
+                })
+            } else {
+                None
+            },
+            pdf: if has_pdf {
+                Some(PdfPayload {
+                    title: self.pdf_title,
+                    author: self.pdf_author,
+                    subject: self.pdf_subject,
+                    keywords: self.pdf_keywords,
+                    creator: self.pdf_creator,
+                    bookmarks: self.pdf_bookmarks,
                 })
             } else {
                 None
@@ -371,6 +443,7 @@ mod tests {
         assert!(v.get("url").is_none());
         assert!(v.get("width").is_none());
         assert!(v.get("quantize").is_none());
+        assert!(v.get("pdf").is_none());
     }
 
     #[test]
@@ -453,6 +526,56 @@ mod tests {
     }
 
     #[test]
+    fn pdf_payload() {
+        let client = ForgeClient::new("http://localhost:3000");
+        let builder = client
+            .render_html("<h1>Report</h1>")
+            .pdf_title("Annual Report")
+            .pdf_author("Jane Doe")
+            .pdf_subject("Financials")
+            .pdf_keywords("finance,annual,report")
+            .pdf_creator("Forge SDK")
+            .pdf_bookmarks(true);
+        let payload = build_payload(&builder);
+        let v: serde_json::Value = serde_json::from_str(&payload).unwrap();
+
+        let p = &v["pdf"];
+        assert_eq!(p["title"], "Annual Report");
+        assert_eq!(p["author"], "Jane Doe");
+        assert_eq!(p["subject"], "Financials");
+        assert_eq!(p["keywords"], "finance,annual,report");
+        assert_eq!(p["creator"], "Forge SDK");
+        assert_eq!(p["bookmarks"], true);
+    }
+
+    #[test]
+    fn pdf_partial_fields() {
+        let client = ForgeClient::new("http://localhost:3000");
+        let builder = client
+            .render_html("<p>test</p>")
+            .pdf_title("Title Only");
+        let payload = build_payload(&builder);
+        let v: serde_json::Value = serde_json::from_str(&payload).unwrap();
+
+        let p = &v["pdf"];
+        assert_eq!(p["title"], "Title Only");
+        assert!(p.get("author").is_none());
+        assert!(p.get("subject").is_none());
+        assert!(p.get("keywords").is_none());
+        assert!(p.get("creator").is_none());
+        assert!(p.get("bookmarks").is_none());
+    }
+
+    #[test]
+    fn no_pdf_when_unset() {
+        let client = ForgeClient::new("http://localhost:3000");
+        let builder = client.render_html("<p>test</p>");
+        let payload = build_payload(&builder);
+        let v: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert!(v.get("pdf").is_none());
+    }
+
+    #[test]
     fn base_url_trailing_slash_stripped() {
         let client = ForgeClient::new("http://localhost:3000/");
         assert_eq!(client.base_url, "http://localhost:3000");
@@ -476,6 +599,12 @@ mod tests {
     fn build_payload(builder: &RenderRequestBuilder<'_>) -> String {
         let has_quantize =
             builder.colors.is_some() || builder.palette.is_some() || builder.dither.is_some();
+        let has_pdf = builder.pdf_title.is_some()
+            || builder.pdf_author.is_some()
+            || builder.pdf_subject.is_some()
+            || builder.pdf_keywords.is_some()
+            || builder.pdf_creator.is_some()
+            || builder.pdf_bookmarks.is_some();
 
         let payload = RenderPayload {
             html: builder.html,
@@ -495,6 +624,18 @@ mod tests {
                     colors: builder.colors,
                     palette: builder.palette.as_ref(),
                     dither: builder.dither,
+                })
+            } else {
+                None
+            },
+            pdf: if has_pdf {
+                Some(PdfPayload {
+                    title: builder.pdf_title,
+                    author: builder.pdf_author,
+                    subject: builder.pdf_subject,
+                    keywords: builder.pdf_keywords,
+                    creator: builder.pdf_creator,
+                    bookmarks: builder.pdf_bookmarks,
                 })
             } else {
                 None

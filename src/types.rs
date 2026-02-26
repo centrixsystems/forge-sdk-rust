@@ -131,6 +131,8 @@ pub(crate) struct RenderPayload<'a> {
     pub timeout: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quantize: Option<QuantizePayload<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pdf: Option<PdfPayload<'a>>,
 }
 
 /// Quantization settings within a render request.
@@ -142,6 +144,23 @@ pub(crate) struct QuantizePayload<'a> {
     pub palette: Option<&'a Palette>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dither: Option<DitherMethod>,
+}
+
+/// PDF metadata settings within a render request.
+#[derive(Debug, Serialize)]
+pub(crate) struct PdfPayload<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keywords: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub creator: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bookmarks: Option<bool>,
 }
 
 /// Server error response body.

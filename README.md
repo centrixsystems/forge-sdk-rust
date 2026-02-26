@@ -98,6 +98,24 @@ let img = client.render_html("<h1>Brand</h1>")
     .await?;
 ```
 
+### PDF Metadata
+
+Embed metadata and generate bookmarks in PDF output.
+
+```rust
+let pdf = client.render_html("<h1>Annual Report</h1><h2>Q4 Results</h2>")
+    .format(OutputFormat::Pdf)
+    .paper("a4")
+    .pdf_title("Annual Report 2025")
+    .pdf_author("Jane Doe")
+    .pdf_subject("Financial Results")
+    .pdf_keywords("finance,annual,report")
+    .pdf_creator("Centrix ERP")
+    .pdf_bookmarks(true)
+    .send()
+    .await?;
+```
+
 ### Custom Client Configuration
 
 ```rust
@@ -152,6 +170,12 @@ All methods consume and return `Self` for chaining. Call `.send().await` to exec
 | `colors` | `u16` | Quantization color count (2-256) |
 | `palette` | `Palette` | Color palette preset or custom hex colors |
 | `dither` | `DitherMethod` | Dithering algorithm |
+| `pdf_title` | `&str` | PDF metadata: document title |
+| `pdf_author` | `&str` | PDF metadata: document author |
+| `pdf_subject` | `&str` | PDF metadata: document subject |
+| `pdf_keywords` | `&str` | PDF metadata: comma-separated keywords |
+| `pdf_creator` | `&str` | PDF metadata: creator application name |
+| `pdf_bookmarks` | `bool` | Generate PDF bookmarks from headings |
 
 ### Enums
 
