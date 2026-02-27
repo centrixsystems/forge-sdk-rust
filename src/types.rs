@@ -182,6 +182,48 @@ impl Serialize for PdfStandard {
     }
 }
 
+/// PDF rendering mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PdfMode {
+    /// Automatic: try vector, fall back to raster.
+    Auto,
+    /// True vector PDF output (text/shapes as native PDF operations).
+    Vector,
+    /// Raster-based PDF output (page rendered as image).
+    Raster,
+}
+
+impl Serialize for PdfMode {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(match self {
+            Self::Auto => "auto",
+            Self::Vector => "vector",
+            Self::Raster => "raster",
+        })
+    }
+}
+
+/// PDF accessibility / tagged PDF level.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccessibilityLevel {
+    /// No accessibility tags.
+    None,
+    /// Basic structure tags (headings, paragraphs, lists, tables).
+    Basic,
+    /// Full PDF/UA-1 compliance.
+    PdfUa1,
+}
+
+impl Serialize for AccessibilityLevel {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(match self {
+            Self::None => "none",
+            Self::Basic => "basic",
+            Self::PdfUa1 => "pdf/ua-1",
+        })
+    }
+}
+
 /// Relationship of an embedded file to the PDF document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EmbedRelationship {
@@ -314,9 +356,39 @@ pub(crate) struct QuantizePayload<'a> {
     pub dither: Option<DitherMethod>,
 }
 
+/// Digital signature settings within a PDF render request.
+#[derive(Debug, Serialize)]
+pub(crate) struct SignaturePayload<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub certificate_data: Option<&'a str>, // base64-encoded PKCS#12
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signer_name: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp_url: Option<&'a str>,
+}
+
+/// Encryption settings within a PDF render request.
+#[derive(Debug, Serialize)]
+pub(crate) struct EncryptionPayload<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_password: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_password: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<&'a str>,
+}
+
 /// PDF metadata settings within a render request.
 #[derive(Debug, Serialize)]
 pub(crate) struct PdfPayload<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<PdfMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -330,6 +402,8 @@ pub(crate) struct PdfPayload<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bookmarks: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_numbers: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub watermark: Option<WatermarkPayload<'a>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub standard: Option<PdfStandard>,
@@ -337,6 +411,14 @@ pub(crate) struct PdfPayload<'a> {
     pub embedded_files: Option<Vec<EmbeddedFilePayload>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub barcodes: Option<Vec<BarcodePayload<'a>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<SignaturePayload<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encryption: Option<EncryptionPayload<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accessibility: Option<AccessibilityLevel>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linearize: Option<bool>,
 }
 
 /// Server error response body.

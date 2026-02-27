@@ -219,6 +219,7 @@ All methods consume and return `Self` for chaining. Call `.send().await` to exec
 | `pdf_keywords` | `&str` | PDF metadata: comma-separated keywords |
 | `pdf_creator` | `&str` | PDF metadata: creator application name |
 | `pdf_bookmarks` | `bool` | Generate PDF bookmarks from headings |
+| `pdf_page_numbers` | `bool` | Add "Page X of Y" footers to each page |
 | `pdf_watermark_text` | `&str` | Watermark text on each page |
 | `pdf_watermark_image` | `&str` | Base64-encoded PNG/JPEG watermark image |
 | `pdf_watermark_opacity` | `f32` | Watermark opacity (0.0-1.0, default: 0.15) |

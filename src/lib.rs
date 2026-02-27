@@ -26,9 +26,9 @@ mod error;
 mod types;
 
 pub use error::ForgeError;
-pub use types::{BarcodeAnchor, BarcodeType, DitherMethod, EmbedRelationship, Flow, Orientation, OutputFormat, Palette, PdfStandard, WatermarkLayer};
+pub use types::{AccessibilityLevel, BarcodeAnchor, BarcodeType, DitherMethod, EmbedRelationship, Flow, Orientation, OutputFormat, Palette, PdfMode, PdfStandard, WatermarkLayer};
 
-use types::{BarcodePayload, EmbeddedFilePayload, ErrorResponse, PdfPayload, QuantizePayload, RenderPayload, WatermarkPayload};
+use types::{BarcodePayload, EmbeddedFilePayload, EncryptionPayload, ErrorResponse, PdfPayload, QuantizePayload, RenderPayload, SignaturePayload, WatermarkPayload};
 
 use std::time::Duration;
 
@@ -95,6 +95,7 @@ impl ForgeClient {
             pdf_keywords: None,
             pdf_creator: None,
             pdf_bookmarks: None,
+            pdf_page_numbers: None,
             pdf_watermark_text: None,
             pdf_watermark_image: None,
             pdf_watermark_opacity: None,
@@ -107,6 +108,18 @@ impl ForgeClient {
             pdf_standard: None,
             pdf_embedded_files: vec![],
             pdf_barcodes: vec![],
+            pdf_mode: None,
+            pdf_sign_certificate: None,
+            pdf_sign_password: None,
+            pdf_sign_name: None,
+            pdf_sign_reason: None,
+            pdf_sign_location: None,
+            pdf_sign_timestamp_url: None,
+            pdf_user_password: None,
+            pdf_owner_password: None,
+            pdf_permissions: None,
+            pdf_accessibility: None,
+            pdf_linearize: None,
         }
     }
 
@@ -135,6 +148,7 @@ impl ForgeClient {
             pdf_keywords: None,
             pdf_creator: None,
             pdf_bookmarks: None,
+            pdf_page_numbers: None,
             pdf_watermark_text: None,
             pdf_watermark_image: None,
             pdf_watermark_opacity: None,
@@ -147,6 +161,18 @@ impl ForgeClient {
             pdf_standard: None,
             pdf_embedded_files: vec![],
             pdf_barcodes: vec![],
+            pdf_mode: None,
+            pdf_sign_certificate: None,
+            pdf_sign_password: None,
+            pdf_sign_name: None,
+            pdf_sign_reason: None,
+            pdf_sign_location: None,
+            pdf_sign_timestamp_url: None,
+            pdf_user_password: None,
+            pdf_owner_password: None,
+            pdf_permissions: None,
+            pdf_accessibility: None,
+            pdf_linearize: None,
         }
     }
 
@@ -215,6 +241,7 @@ pub struct RenderRequestBuilder<'a> {
     pdf_keywords: Option<&'a str>,
     pdf_creator: Option<&'a str>,
     pdf_bookmarks: Option<bool>,
+    pdf_page_numbers: Option<bool>,
     pdf_watermark_text: Option<&'a str>,
     pdf_watermark_image: Option<&'a str>,
     pdf_watermark_opacity: Option<f32>,
@@ -227,6 +254,18 @@ pub struct RenderRequestBuilder<'a> {
     pdf_standard: Option<PdfStandard>,
     pdf_embedded_files: Vec<(String, String, Option<String>, Option<String>, Option<EmbedRelationship>)>,
     pdf_barcodes: Vec<(&'a str, BarcodeType, Option<f64>, Option<f64>, Option<f64>, Option<f64>, Option<BarcodeAnchor>, Option<&'a str>, Option<&'a str>, Option<bool>, Option<&'a str>)>,
+    pdf_mode: Option<PdfMode>,
+    pdf_sign_certificate: Option<&'a str>,
+    pdf_sign_password: Option<&'a str>,
+    pdf_sign_name: Option<&'a str>,
+    pdf_sign_reason: Option<&'a str>,
+    pdf_sign_location: Option<&'a str>,
+    pdf_sign_timestamp_url: Option<&'a str>,
+    pdf_user_password: Option<&'a str>,
+    pdf_owner_password: Option<&'a str>,
+    pdf_permissions: Option<&'a str>,
+    pdf_accessibility: Option<AccessibilityLevel>,
+    pdf_linearize: Option<bool>,
 }
 
 impl<'a> RenderRequestBuilder<'a> {
@@ -346,6 +385,12 @@ impl<'a> RenderRequestBuilder<'a> {
         self
     }
 
+    /// Enable "Page X of Y" footers on each PDF page.
+    pub fn pdf_page_numbers(mut self, enabled: bool) -> Self {
+        self.pdf_page_numbers = Some(enabled);
+        self
+    }
+
     /// Watermark text overlay on each PDF page.
     pub fn pdf_watermark_text(mut self, text: &'a str) -> Self {
         self.pdf_watermark_text = Some(text);
@@ -435,6 +480,78 @@ impl<'a> RenderRequestBuilder<'a> {
         self
     }
 
+    /// PDF rendering mode (auto, vector, raster).
+    pub fn pdf_mode(mut self, mode: PdfMode) -> Self {
+        self.pdf_mode = Some(mode);
+        self
+    }
+
+    /// Digital signature: base64-encoded PKCS#12 certificate.
+    pub fn pdf_sign_certificate(mut self, base64_data: &'a str) -> Self {
+        self.pdf_sign_certificate = Some(base64_data);
+        self
+    }
+
+    /// Digital signature: certificate password.
+    pub fn pdf_sign_password(mut self, password: &'a str) -> Self {
+        self.pdf_sign_password = Some(password);
+        self
+    }
+
+    /// Digital signature: signer name.
+    pub fn pdf_sign_name(mut self, name: &'a str) -> Self {
+        self.pdf_sign_name = Some(name);
+        self
+    }
+
+    /// Digital signature: signing reason.
+    pub fn pdf_sign_reason(mut self, reason: &'a str) -> Self {
+        self.pdf_sign_reason = Some(reason);
+        self
+    }
+
+    /// Digital signature: signing location.
+    pub fn pdf_sign_location(mut self, location: &'a str) -> Self {
+        self.pdf_sign_location = Some(location);
+        self
+    }
+
+    /// Digital signature: timestamp authority URL.
+    pub fn pdf_sign_timestamp_url(mut self, url: &'a str) -> Self {
+        self.pdf_sign_timestamp_url = Some(url);
+        self
+    }
+
+    /// Encryption: user password (required to open PDF).
+    pub fn pdf_user_password(mut self, password: &'a str) -> Self {
+        self.pdf_user_password = Some(password);
+        self
+    }
+
+    /// Encryption: owner password (required to change permissions).
+    pub fn pdf_owner_password(mut self, password: &'a str) -> Self {
+        self.pdf_owner_password = Some(password);
+        self
+    }
+
+    /// Encryption: allowed permissions ("print,copy,edit,annotate,fill-forms").
+    pub fn pdf_permissions(mut self, permissions: &'a str) -> Self {
+        self.pdf_permissions = Some(permissions);
+        self
+    }
+
+    /// Accessibility / tagged PDF level.
+    pub fn pdf_accessibility(mut self, level: AccessibilityLevel) -> Self {
+        self.pdf_accessibility = Some(level);
+        self
+    }
+
+    /// Enable linearized PDF (fast web view).
+    pub fn pdf_linearize(mut self, enabled: bool) -> Self {
+        self.pdf_linearize = Some(enabled);
+        self
+    }
+
     /// Attach a file to the PDF. Data must be base64-encoded.
     pub fn pdf_attach(
         mut self,
@@ -467,16 +584,31 @@ impl<'a> RenderRequestBuilder<'a> {
             || self.pdf_watermark_scale.is_some()
             || self.pdf_watermark_layer.is_some()
             || self.pdf_watermark_pages.is_some();
+        let has_signature = self.pdf_sign_certificate.is_some()
+            || self.pdf_sign_password.is_some()
+            || self.pdf_sign_name.is_some()
+            || self.pdf_sign_reason.is_some()
+            || self.pdf_sign_location.is_some()
+            || self.pdf_sign_timestamp_url.is_some();
+        let has_encryption = self.pdf_user_password.is_some()
+            || self.pdf_owner_password.is_some()
+            || self.pdf_permissions.is_some();
         let has_pdf = self.pdf_title.is_some()
             || self.pdf_author.is_some()
             || self.pdf_subject.is_some()
             || self.pdf_keywords.is_some()
             || self.pdf_creator.is_some()
             || self.pdf_bookmarks.is_some()
+            || self.pdf_page_numbers.is_some()
             || has_watermark
             || self.pdf_standard.is_some()
             || !self.pdf_embedded_files.is_empty()
-            || !self.pdf_barcodes.is_empty();
+            || !self.pdf_barcodes.is_empty()
+            || self.pdf_mode.is_some()
+            || has_signature
+            || has_encryption
+            || self.pdf_accessibility.is_some()
+            || self.pdf_linearize.is_some();
 
         let payload = RenderPayload {
             html: self.html,
@@ -502,12 +634,14 @@ impl<'a> RenderRequestBuilder<'a> {
             },
             pdf: if has_pdf {
                 Some(PdfPayload {
+                    mode: self.pdf_mode,
                     title: self.pdf_title,
                     author: self.pdf_author,
                     subject: self.pdf_subject,
                     keywords: self.pdf_keywords,
                     creator: self.pdf_creator,
                     bookmarks: self.pdf_bookmarks,
+                    page_numbers: self.pdf_page_numbers,
                     watermark: if has_watermark {
                         Some(WatermarkPayload {
                             text: self.pdf_watermark_text,
@@ -559,6 +693,29 @@ impl<'a> RenderRequestBuilder<'a> {
                             }
                         }).collect())
                     },
+                    signature: if has_signature {
+                        Some(SignaturePayload {
+                            certificate_data: self.pdf_sign_certificate,
+                            password: self.pdf_sign_password,
+                            signer_name: self.pdf_sign_name,
+                            reason: self.pdf_sign_reason,
+                            location: self.pdf_sign_location,
+                            timestamp_url: self.pdf_sign_timestamp_url,
+                        })
+                    } else {
+                        None
+                    },
+                    encryption: if has_encryption {
+                        Some(EncryptionPayload {
+                            user_password: self.pdf_user_password,
+                            owner_password: self.pdf_owner_password,
+                            permissions: self.pdf_permissions,
+                        })
+                    } else {
+                        None
+                    },
+                    accessibility: self.pdf_accessibility,
+                    linearize: self.pdf_linearize,
                 })
             } else {
                 None
@@ -905,16 +1062,31 @@ mod tests {
             || builder.pdf_watermark_scale.is_some()
             || builder.pdf_watermark_layer.is_some()
             || builder.pdf_watermark_pages.is_some();
+        let has_signature = builder.pdf_sign_certificate.is_some()
+            || builder.pdf_sign_password.is_some()
+            || builder.pdf_sign_name.is_some()
+            || builder.pdf_sign_reason.is_some()
+            || builder.pdf_sign_location.is_some()
+            || builder.pdf_sign_timestamp_url.is_some();
+        let has_encryption = builder.pdf_user_password.is_some()
+            || builder.pdf_owner_password.is_some()
+            || builder.pdf_permissions.is_some();
         let has_pdf = builder.pdf_title.is_some()
             || builder.pdf_author.is_some()
             || builder.pdf_subject.is_some()
             || builder.pdf_keywords.is_some()
             || builder.pdf_creator.is_some()
             || builder.pdf_bookmarks.is_some()
+            || builder.pdf_page_numbers.is_some()
             || has_watermark
             || builder.pdf_standard.is_some()
             || !builder.pdf_embedded_files.is_empty()
-            || !builder.pdf_barcodes.is_empty();
+            || !builder.pdf_barcodes.is_empty()
+            || builder.pdf_mode.is_some()
+            || has_signature
+            || has_encryption
+            || builder.pdf_accessibility.is_some()
+            || builder.pdf_linearize.is_some();
 
         let payload = RenderPayload {
             html: builder.html,
@@ -940,12 +1112,14 @@ mod tests {
             },
             pdf: if has_pdf {
                 Some(PdfPayload {
+                    mode: builder.pdf_mode,
                     title: builder.pdf_title,
                     author: builder.pdf_author,
                     subject: builder.pdf_subject,
                     keywords: builder.pdf_keywords,
                     creator: builder.pdf_creator,
                     bookmarks: builder.pdf_bookmarks,
+                    page_numbers: builder.pdf_page_numbers,
                     watermark: if has_watermark {
                         Some(WatermarkPayload {
                             text: builder.pdf_watermark_text,
@@ -997,6 +1171,29 @@ mod tests {
                             }
                         }).collect())
                     },
+                    signature: if has_signature {
+                        Some(SignaturePayload {
+                            certificate_data: builder.pdf_sign_certificate,
+                            password: builder.pdf_sign_password,
+                            signer_name: builder.pdf_sign_name,
+                            reason: builder.pdf_sign_reason,
+                            location: builder.pdf_sign_location,
+                            timestamp_url: builder.pdf_sign_timestamp_url,
+                        })
+                    } else {
+                        None
+                    },
+                    encryption: if has_encryption {
+                        Some(EncryptionPayload {
+                            user_password: builder.pdf_user_password,
+                            owner_password: builder.pdf_owner_password,
+                            permissions: builder.pdf_permissions,
+                        })
+                    } else {
+                        None
+                    },
+                    accessibility: builder.pdf_accessibility,
+                    linearize: builder.pdf_linearize,
                 })
             } else {
                 None
