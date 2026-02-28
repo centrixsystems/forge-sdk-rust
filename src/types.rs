@@ -419,6 +419,8 @@ pub(crate) struct PdfPayload<'a> {
     pub accessibility: Option<AccessibilityLevel>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linearize: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document_lang: Option<&'a str>,
 }
 
 /// Server error response body.

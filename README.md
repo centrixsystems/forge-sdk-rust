@@ -230,6 +230,7 @@ All methods consume and return `Self` for chaining. Call `.send().await` to exec
 | `pdf_watermark_layer` | `WatermarkLayer` | Layer position: Over or Under |
 | `pdf_standard` | `PdfStandard` | PDF standard: None, A2B (PDF/A-2b), A3B (PDF/A-3b) |
 | `pdf_attach` | `(&str, &str, Option<&str>, Option<&str>, Option<EmbedRelationship>)` | Embed file in PDF (base64 data) |
+| `pdf_lang` | `&str` | Document language (BCP 47 tag, e.g. `"en-US"`). Required for PDF/UA-1 |
 
 ### Enums
 

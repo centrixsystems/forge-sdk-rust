@@ -120,6 +120,7 @@ impl ForgeClient {
             pdf_permissions: None,
             pdf_accessibility: None,
             pdf_linearize: None,
+            pdf_lang: None,
         }
     }
 
@@ -173,6 +174,7 @@ impl ForgeClient {
             pdf_permissions: None,
             pdf_accessibility: None,
             pdf_linearize: None,
+            pdf_lang: None,
         }
     }
 
@@ -266,6 +268,7 @@ pub struct RenderRequestBuilder<'a> {
     pdf_permissions: Option<&'a str>,
     pdf_accessibility: Option<AccessibilityLevel>,
     pdf_linearize: Option<bool>,
+    pdf_lang: Option<&'a str>,
 }
 
 impl<'a> RenderRequestBuilder<'a> {
@@ -552,6 +555,12 @@ impl<'a> RenderRequestBuilder<'a> {
         self
     }
 
+    /// Document language as a BCP 47 tag (e.g. `"en-US"`). Required for PDF/UA-1.
+    pub fn pdf_lang(mut self, lang: &'a str) -> Self {
+        self.pdf_lang = Some(lang);
+        self
+    }
+
     /// Attach a file to the PDF. Data must be base64-encoded.
     pub fn pdf_attach(
         mut self,
@@ -608,7 +617,8 @@ impl<'a> RenderRequestBuilder<'a> {
             || has_signature
             || has_encryption
             || self.pdf_accessibility.is_some()
-            || self.pdf_linearize.is_some();
+            || self.pdf_linearize.is_some()
+            || self.pdf_lang.is_some();
 
         let payload = RenderPayload {
             html: self.html,
@@ -716,6 +726,7 @@ impl<'a> RenderRequestBuilder<'a> {
                     },
                     accessibility: self.pdf_accessibility,
                     linearize: self.pdf_linearize,
+                    document_lang: self.pdf_lang,
                 })
             } else {
                 None
@@ -1086,7 +1097,8 @@ mod tests {
             || has_signature
             || has_encryption
             || builder.pdf_accessibility.is_some()
-            || builder.pdf_linearize.is_some();
+            || builder.pdf_linearize.is_some()
+            || builder.pdf_lang.is_some();
 
         let payload = RenderPayload {
             html: builder.html,
@@ -1194,6 +1206,7 @@ mod tests {
                     },
                     accessibility: builder.pdf_accessibility,
                     linearize: builder.pdf_linearize,
+                    document_lang: builder.pdf_lang,
                 })
             } else {
                 None
