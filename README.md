@@ -267,3 +267,5 @@ All methods consume and return `Self` for chaining. Call `.send().await` to exec
 ## License
 
 MIT
+
+<\!-- CI test -->
