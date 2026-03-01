@@ -106,21 +106,39 @@ impl Serialize for Palette {
 /// Barcode/QR code type for PDF overlay.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BarcodeType {
+    // 2D types
     Qr,
+    DataMatrix,
+    Pdf417,
+    Aztec,
+    // 1D types
     Code128,
     Ean13,
+    Ean8,
     UpcA,
     Code39,
+    Code93,
+    Codabar,
+    Itf,
+    Code11,
 }
 
 impl Serialize for BarcodeType {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(match self {
             Self::Qr => "qr",
+            Self::DataMatrix => "datamatrix",
+            Self::Pdf417 => "pdf417",
+            Self::Aztec => "aztec",
             Self::Code128 => "code128",
             Self::Ean13 => "ean13",
+            Self::Ean8 => "ean8",
             Self::UpcA => "upca",
             Self::Code39 => "code39",
+            Self::Code93 => "code93",
+            Self::Codabar => "codabar",
+            Self::Itf => "itf",
+            Self::Code11 => "code11",
         })
     }
 }
