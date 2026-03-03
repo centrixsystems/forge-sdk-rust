@@ -32,6 +32,15 @@ use types::{BarcodePayload, EmbeddedFilePayload, EncryptionPayload, ErrorRespons
 
 use std::time::Duration;
 
+/// Response from a render request, including any CSS compatibility warnings.
+pub struct RenderResponse {
+    /// The rendered output bytes (PDF, PNG, etc.).
+    pub bytes: Vec<u8>,
+    /// CSS compatibility warnings from the Forge server.
+    /// Each warning describes a CSS feature that may not render perfectly.
+    pub warnings: Vec<String>,
+}
+
 /// Client for a Forge rendering server.
 #[derive(Debug, Clone)]
 #[must_use]
@@ -754,6 +763,195 @@ impl<'a> RenderRequestBuilder<'a> {
         }
 
         Ok(resp.bytes().await?.to_vec())
+    }
+
+    /// Send the render request and return the full response including warnings.
+    ///
+    /// Unlike `send()` which returns only the rendered bytes, this method
+    /// also extracts `X-Forge-Warning` response headers that indicate CSS
+    /// features with limited support.
+    pub async fn send_response(self) -> Result<RenderResponse, ForgeError> {
+        let has_quantize =
+            self.colors.is_some() || self.palette.is_some() || self.dither.is_some();
+        let has_watermark = self.pdf_watermark_text.is_some()
+            || self.pdf_watermark_image.is_some()
+            || self.pdf_watermark_opacity.is_some()
+            || self.pdf_watermark_rotation.is_some()
+            || self.pdf_watermark_color.is_some()
+            || self.pdf_watermark_font_size.is_some()
+            || self.pdf_watermark_scale.is_some()
+            || self.pdf_watermark_layer.is_some()
+            || self.pdf_watermark_pages.is_some();
+        let has_signature = self.pdf_sign_certificate.is_some()
+            || self.pdf_sign_password.is_some()
+            || self.pdf_sign_name.is_some()
+            || self.pdf_sign_reason.is_some()
+            || self.pdf_sign_location.is_some()
+            || self.pdf_sign_timestamp_url.is_some();
+        let has_encryption = self.pdf_user_password.is_some()
+            || self.pdf_owner_password.is_some()
+            || self.pdf_permissions.is_some();
+        let has_pdf = self.pdf_title.is_some()
+            || self.pdf_author.is_some()
+            || self.pdf_subject.is_some()
+            || self.pdf_keywords.is_some()
+            || self.pdf_creator.is_some()
+            || self.pdf_bookmarks.is_some()
+            || self.pdf_page_numbers.is_some()
+            || has_watermark
+            || self.pdf_standard.is_some()
+            || !self.pdf_embedded_files.is_empty()
+            || !self.pdf_barcodes.is_empty()
+            || self.pdf_mode.is_some()
+            || has_signature
+            || has_encryption
+            || self.pdf_accessibility.is_some()
+            || self.pdf_linearize.is_some()
+            || self.pdf_lang.is_some();
+
+        let payload = RenderPayload {
+            html: self.html,
+            url: self.url,
+            format: self.format,
+            width: self.width,
+            height: self.height,
+            paper: self.paper,
+            orientation: self.orientation,
+            margins: self.margins,
+            flow: self.flow,
+            density: self.density,
+            background: self.background,
+            timeout: self.timeout,
+            quantize: if has_quantize {
+                Some(QuantizePayload {
+                    colors: self.colors,
+                    palette: self.palette.as_ref(),
+                    dither: self.dither,
+                })
+            } else {
+                None
+            },
+            pdf: if has_pdf {
+                Some(PdfPayload {
+                    mode: self.pdf_mode,
+                    title: self.pdf_title,
+                    author: self.pdf_author,
+                    subject: self.pdf_subject,
+                    keywords: self.pdf_keywords,
+                    creator: self.pdf_creator,
+                    bookmarks: self.pdf_bookmarks,
+                    page_numbers: self.pdf_page_numbers,
+                    watermark: if has_watermark {
+                        Some(WatermarkPayload {
+                            text: self.pdf_watermark_text,
+                            image_data: self.pdf_watermark_image,
+                            opacity: self.pdf_watermark_opacity,
+                            rotation: self.pdf_watermark_rotation,
+                            color: self.pdf_watermark_color,
+                            font_size: self.pdf_watermark_font_size,
+                            scale: self.pdf_watermark_scale,
+                            layer: self.pdf_watermark_layer,
+                            pages: self.pdf_watermark_pages,
+                        })
+                    } else {
+                        None
+                    },
+                    standard: self.pdf_standard,
+                    embedded_files: if self.pdf_embedded_files.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            self.pdf_embedded_files
+                                .iter()
+                                .map(|(path, data, mime, desc, rel)| EmbeddedFilePayload {
+                                    path: path.clone(),
+                                    data: data.clone(),
+                                    mime_type: mime.clone(),
+                                    description: desc.clone(),
+                                    relationship: *rel,
+                                })
+                                .collect(),
+                        )
+                    },
+                    barcodes: if self.pdf_barcodes.is_empty() {
+                        None
+                    } else {
+                        Some(self.pdf_barcodes.iter().map(|(data, bt, x, y, w, h, anchor, fg, bg, draw_bg, pages)| {
+                            BarcodePayload {
+                                barcode_type: *bt,
+                                data,
+                                x: *x,
+                                y: *y,
+                                width: *w,
+                                height: *h,
+                                anchor: *anchor,
+                                foreground: *fg,
+                                background: *bg,
+                                draw_background: *draw_bg,
+                                pages: *pages,
+                            }
+                        }).collect())
+                    },
+                    signature: if has_signature {
+                        Some(SignaturePayload {
+                            certificate_data: self.pdf_sign_certificate,
+                            password: self.pdf_sign_password,
+                            signer_name: self.pdf_sign_name,
+                            reason: self.pdf_sign_reason,
+                            location: self.pdf_sign_location,
+                            timestamp_url: self.pdf_sign_timestamp_url,
+                        })
+                    } else {
+                        None
+                    },
+                    encryption: if has_encryption {
+                        Some(EncryptionPayload {
+                            user_password: self.pdf_user_password,
+                            owner_password: self.pdf_owner_password,
+                            permissions: self.pdf_permissions,
+                        })
+                    } else {
+                        None
+                    },
+                    accessibility: self.pdf_accessibility,
+                    linearize: self.pdf_linearize,
+                    document_lang: self.pdf_lang,
+                })
+            } else {
+                None
+            },
+        };
+
+        let resp = self
+            .client
+            .http
+            .post(format!("{}/render", self.client.base_url))
+            .json(&payload)
+            .send()
+            .await?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let message = match resp.json::<ErrorResponse>().await {
+                Ok(e) => e.error,
+                Err(_) => format!("HTTP {status}"),
+            };
+            return Err(ForgeError::Server {
+                status: status.as_u16(),
+                message,
+            });
+        }
+
+        let warnings = resp
+            .headers()
+            .get_all("X-Forge-Warning")
+            .iter()
+            .filter_map(|v| v.to_str().ok().map(str::to_owned))
+            .collect();
+
+        let bytes = resp.bytes().await?.to_vec();
+
+        Ok(RenderResponse { bytes, warnings })
     }
 }
 
